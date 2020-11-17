@@ -11,7 +11,7 @@ Implement the different exploration strategies.
   * schedule is a callable decaying epsilon
 
 You can get the approximated Q-values via mab.bandit_q_values and the different
-counters for the bandits via mab.bandit_counters. mab.no_actions gives you the number
+counters for the bandits via mab.bandit_counters.mab.no_actions gives you the number
 of arms.
 """
 
@@ -24,7 +24,8 @@ class Bandit:
 
     def pull(self):
         self.counter += 1
-        reward = np.clip(self.bias + np.random.uniform(), 0, 1)
+        # reward = np.clip(self.bias + np.random.uniform(), 0, 1)
+        reward = self.bias + np.random.uniform()
         self.q_value = self.q_value + 1 / self.counter * (reward - self.q_value)
         return reward
 
@@ -75,41 +76,44 @@ def plot(regrets):
         plt.xlabel('Rounds')
         plt.plot(np.arange(len(total_regret)), total_regret, label=strategy)
     plt.legend()
+    plt.show()
     plt.savefig('regret.pdf', bbox_inches='tight')
 
 
 def random(mab: MAB):
-    # TODO: Implement random action selection
-    raise NotImplementedError()
-    # Now that you have implemented the strategy, don't forget to comment in the strategy below
+    return np.random.randint(0, mab.no_actions)
 
 
 def epsilon_greedy(mab: MAB, epsilon):
-    # TODO: Implement epsiolon greedy action selection
-    raise NotImplementedError()
-    # Now that you have implemented the strategy, don't forget to comment in the strategy below
+    r = np.random.uniform()
+    if r > epsilon:
+        action = np.argmax(mab.bandit_q_values)
+    else:
+        action = random(mab)
+    return action
 
 
 def decaying_epsilon_greedy(mab: MAB, epsilon_init):
-    # TODO: Implement epsiolon greedy action selection with an epsilon decay
-    raise NotImplementedError()
-    # Now that you have implemented the strategy, don't forget to comment in the strategy below
+    epsilon = (1 - mab.step_counter / mab.no_rounds) * epsilon_init
+    return epsilon_greedy(mab, epsilon)
 
 
 def ucb(mab: MAB, c):
-    # TODO: Implement upper confidence bound action selection
-    raise NotImplementedError()
-    # Now that you have implemented the strategy, don't forget to comment in the strategy below
-
+    q_vals = mab.bandit_q_values
+    b_counters = mab.bandit_counters
+    t = mab.step_counter + 1
+    ucb_vals = q_vals + c * np.sqrt(np.log(t)/(b_counters+np.finfo(float).eps))
+    return np.argmax(ucb_vals)
 
 def softmax(mab: MAB, tau):
-    # TODO: Implement softmax action selection
-    raise NotImplementedError()
-    # Now that you have implemented the strategy, don't forget to comment in the strategy below
+    q_vals = mab.bandit_q_values
+    prob = np.exp(q_vals/tau) / np.sum(np.exp(q_vals/tau))
+    return np.random.choice(mab.no_actions, p=prob)
 
 
 if __name__ == '__main__':
     no_rounds = 1000000
+    # no_rounds = 10000
     epsilon = 0.5
     epsilon_init = 0.6
     tau = 0.01
@@ -119,16 +123,11 @@ if __name__ == '__main__':
     best_action_value = 0.7
 
     strategies = {}
-    # TODO: comment in once you implemented the function: random
-    # strategies[random] = {}
-    # TODO: comment in once you implemented the function: epsilon_greedy
-    # strategies[epsilon_greedy] = {'epsilon': epsilon}
-    # TODO: comment in once you implemented the function: decaying_epsilon_greedy
-    # strategies[decaying_epsilon_greedy] = {'epsilon_init': epsilon_init}
-    # TODO: comment in once you implemented the function: ucb
-    # strategies[ucb] = {'c': c}
-    # TODO: comment in once you implemented the function: softmax
-    # strategies[softmax] = {'tau': tau}
+    strategies[random] = {}
+    strategies[epsilon_greedy] = {'epsilon': epsilon}
+    strategies[decaying_epsilon_greedy] = {'epsilon_init': epsilon_init}
+    strategies[ucb] = {'c': c}
+    strategies[softmax] = {'tau': tau}
 
     average_total_returns = {}
     total_regrets = {}
@@ -136,7 +135,7 @@ if __name__ == '__main__':
     for strategy, parameters in strategies.items():
         print(strategy.__name__)
         bandits = [Bandit(bias, 1 - bias) for bias in biases]
-        mab = MAB(best_action_value, *bandits)
+        mab = MAB(best_action_value, no_rounds, *bandits)
         total_regret, average_total_return = mab.run(strategy, **parameters)
         print("\n")
         average_total_returns[strategy.__name__] = average_total_return
