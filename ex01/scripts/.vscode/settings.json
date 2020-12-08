@@ -1,0 +1,7 @@
+{
+    "latex-workshop.view.pdf.external.viewer.command": "skim-open.sh",
+    "latex-workshop.view.pdf.external.viewer.args": [
+        "-r",
+        "%PDF%"
+    ]
+}
