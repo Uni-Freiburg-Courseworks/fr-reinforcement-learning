@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 import sys
-from gridworld import GridworldEnv, dump_values
+from gridworld import GridworldEnv
 import policy_iteration
 import value_iteration
 
@@ -48,7 +48,6 @@ class TestPolicyImprovement(unittest.TestCase, TestIterationAlgorithm):
     @classmethod
     def setUpClass(cls):
         cls.policy, cls.v = policy_iteration.policy_improvement(env)
-        dump_values(env, cls.v)
 
 
 class TestValueIteration(unittest.TestCase, TestIterationAlgorithm):

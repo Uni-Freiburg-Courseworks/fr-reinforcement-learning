@@ -29,8 +29,9 @@ def policy_eval(policy, env, discount_factor=1.0, theta=0.00001):
                 pol_prob = policy[state][action]
                 value_new += pol_prob * q_func(env, state, action, V, discount_factor)
             max_error = max(max_error, abs(value_new - value))
-            V_new[state] = value_new
-        V = V_new
+            # V_new[state] = value_new
+            V[state] = value_new # performing this online update can speedup update
+        # V = V_new
         n_evaluations += 1
         if max_error < theta:
             break

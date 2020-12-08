@@ -5,7 +5,6 @@ RIGHT = 1
 DOWN = 2
 LEFT = 3
 
-Actions = [UP, RIGHT, DOWN, LEFT]
 
 class GridworldEnv:
     """
@@ -70,20 +69,3 @@ class GridworldEnv:
             it.iternext()
 
         self.P = P
-
-
-def q_func(env, state, action, V, discount_factor):
-    value = 0.0
-    for prob, next_state, reward, done in env.P[state][action]:
-        value += prob * (reward + discount_factor * V[next_state])
-
-    return value
-
-
-def dump_values(env, V):
-    H, W = env.shape
-    print(f"Dumping value for environment of shape {H, W}")
-    print('------------')
-    for i in range(H):
-        print(V[i*H:(i+1)*H])
-    print('------------')
