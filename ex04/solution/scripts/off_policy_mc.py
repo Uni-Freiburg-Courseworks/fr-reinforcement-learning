@@ -1,6 +1,8 @@
 from collections import defaultdict
 import numpy as np
-from tqdm import tqdm
+import sys
+from blackjack import BlackjackEnv
+
 
 def create_random_policy(nA):
     """
@@ -33,12 +35,11 @@ def create_greedy_policy(Q):
       of action probabilities.
     """
 
-    def policy_fn(observation):
-        # Implement this!
-        action = np.argmax(Q[observation])
-        dist = np.zeros_like(Q[observation])
-        dist[action] = 1.0
-        return dist
+    def policy_fn(state):
+        A = np.zeros_like(Q[state], dtype=float)
+        best_action = np.argmax(Q[state])
+        A[best_action] = 1.0
+        return A
 
     return policy_fn
 
@@ -49,7 +50,7 @@ def mc_control_importance_sampling(env, num_episodes, behavior_policy, discount_
     Finds an optimal greedy policy.
 
     Args:
-      env: environment.
+      env: OpenAI gym environment.
       num_episodes: Nubmer of episodes to sample.
       behavior_policy: The behavior to follow while generating episodes.
           A function that given an observation returns a vector of probabilities for each action.
@@ -64,33 +65,39 @@ def mc_control_importance_sampling(env, num_episodes, behavior_policy, discount_
 
     # The final action-value function.
     # A dictionary that maps state -> action values
+    returns_sum = defaultdict(lambda: np.zeros(env.nA))
+    returns_count = defaultdict(lambda: np.zeros(env.nA))
     Q = defaultdict(lambda: np.zeros(env.nA))
-
+    C = defaultdict(lambda: np.zeros(env.nA))
     # Our greedily policy we want to learn
     target_policy = create_greedy_policy(Q)
+    for i_episode in range(1, num_episodes + 1):
+        # Print out which episode we're on, useful for debugging.
+        if i_episode % 1000 == 0:
+            print("\rEpisode {}/{}.".format(i_episode, num_episodes), end="")
+            sys.stdout.flush()
 
-    # Implement this!
-    cum_weight = defaultdict(lambda: 0)
-    for _ in tqdm(range(num_episodes)):
-        obs = env.reset()
+        # Generate an episode.
+        # An episode is an array of (state, action, reward) tuples.
         episode = []
-
-        done = False
-        while not done: # generate episode
-            action = np.random.choice(env.nA, p=behavior_policy(obs))
-            obs_new, r, done, _ = env.step(action)
-            episode.append([obs, action, r])
-            obs = obs_new
-        episode.reverse()
+        state = env.reset()
+        for t in range(100):
+            # Sample an action from our policy
+            probs = behavior_policy(state)
+            action = np.random.choice(np.arange(len(probs)), p=probs)
+            next_state, reward, done, _ = env.step(action)
+            episode.append((state, action, reward))
+            if done:
+                break
+            state = next_state
 
         G = 0
-        weight = 1
-        for obs, action, r in episode:
-            G = discount_factor*G + r
-            cum_weight[(obs, action)] += weight
-            Q[obs][action] += weight / cum_weight[(obs, action)] * (G - Q[obs][action])
-            weight *= target_policy(obs)[action] / behavior_policy(obs)[action]
-            if weight == 0:
+        W = 1
+        for state, action, reward in reversed(episode):
+            G = reward + discount_factor * G
+            C[state][action] += W
+            Q[state][action] = Q[state][action] + (W / C[state][action]) * (G - Q[state][action])
+            if action != np.argmax(target_policy(state)):
                 break
-
+            W *= (1 / behavior_policy(state)[action])
     return Q, target_policy
