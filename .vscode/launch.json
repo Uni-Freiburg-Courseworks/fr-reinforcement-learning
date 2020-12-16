@@ -27,5 +27,13 @@
             "program": "${workspaceFolder}/ex04/scripts/visualization.py",
             "console": "integratedTerminal"
         }
+        {
+            "name": "Test exercise 5",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/ex05/scripts/exercise-05_test.py",
+            "args": ["-v"],
+            "console": "integratedTerminal"
+        }
     ]
 }
