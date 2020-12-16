@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/ex03/scripts/exercise-03_test.py",
             "args": ["-v"],
             "console": "integratedTerminal"
-        }
+        },
         {
             "name": "Test exercise 4",
             "type": "python",
@@ -19,14 +19,14 @@
             "program": "${workspaceFolder}/ex04/scripts/exercise-04_test.py",
             "args": ["-v"],
             "console": "integratedTerminal"
-        }
+        },
         {
             "name": "Visualize exercise 4",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/ex04/scripts/visualization.py",
             "console": "integratedTerminal"
-        }
+        },
         {
             "name": "Test exercise 5",
             "type": "python",
@@ -34,6 +34,13 @@
             "program": "${workspaceFolder}/ex05/scripts/exercise-05_test.py",
             "args": ["-v"],
             "console": "integratedTerminal"
-        }
+        },
+        {
+            "name": "Visualize exercise 5",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/ex05/scripts/visualization.py",
+            "console": "integratedTerminal"
+        },
     ]
 }

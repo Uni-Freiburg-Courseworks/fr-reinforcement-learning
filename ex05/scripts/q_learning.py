@@ -26,7 +26,7 @@ def make_epsilon_greedy_policy(Q, epsilon, nA):
         q_vals = Q[observation]
         best_action = np.argmax(q_vals)
         prob = np.ones(nA) * epsilon / nA
-        prob[best_action] += 1 - epsilon
+        prob[best_action] += 1.0 - epsilon
 
         return prob
 
@@ -74,10 +74,11 @@ def q_learning(env, num_episodes, discount_factor=1.0, alpha=0.5, epsilon=0.1):
         episode_length = 0
         episode_reward = 0
         while not done:
-            a = np.random.choice(env.nA, p=policy(s))
+            action_p = policy(s)
+            a = np.random.choice(env.nA, p=action_p)
             s1, reward, done, _ = env.step(a)
             q1_max = np.max(Q[s1])
-            Q[s] += alpha * (reward + discount_factor * q1_max - Q[s])
+            Q[s][a] += alpha * (reward + discount_factor * q1_max - Q[s][a])
             s = s1
             episode_length += 1
             episode_reward += reward
