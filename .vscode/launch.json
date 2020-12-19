@@ -42,5 +42,12 @@
             "program": "${workspaceFolder}/ex05/scripts/visualization.py",
             "console": "integratedTerminal"
         },
+        {
+            "name": "Visualize exercise 6",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/ex06/scripts/visualization.py",
+            "console": "integratedTerminal"
+        },
     ]
 }
