@@ -49,5 +49,12 @@
             "program": "${workspaceFolder}/ex06/scripts/visualization.py",
             "console": "integratedTerminal"
         },
+        {
+            "name": "Run exercise 7",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/ex07/scripts/sarsa_fa.py",
+            "console": "integratedTerminal"
+        },
     ]
 }
