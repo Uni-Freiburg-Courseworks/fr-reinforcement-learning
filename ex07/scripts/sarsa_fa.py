@@ -30,7 +30,9 @@ class Q(nn.Module):
 
         self.q_func = nn.Sequential(
             nn.Linear(state_dim, hidden_dim, bias=True),
+            nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim, bias=True),
+            nn.ReLU(),
             nn.Linear(hidden_dim, action_dim, bias=True)
         )
 
@@ -81,12 +83,9 @@ class SARSA:
                 stats.episode_lengths[e] = t
 
                 self._q_optimizer.zero_grad()
-                if d:
-                    loss = self._loss_function(torch.tensor(r).float(), r_hat)
-                else:
-                    na, nr_hat = self.get_action(ns, epsilon, False)
-                    loss = self._loss_function(torch.tensor(r + self._gamma*(nr_hat.item())).float(), r_hat)
-
+                na, nr_hat = self.get_action(ns, epsilon, False)
+                target = r + (1-d) * self._gamma * nr_hat.detach()
+                loss = self._loss_function(r_hat, target)
                 loss.backward()
                 self._q_optimizer.step()
 
@@ -132,7 +131,7 @@ if __name__ == "__main__":
     action_dim = env.action_space.n
     sarsa = SARSA(state_dim, action_dim, gamma=0.99)
 
-    episodes = 1000
+    episodes = 500
     time_steps = 200
     epsilon = 0.2
 
@@ -142,7 +141,7 @@ if __name__ == "__main__":
 
     for _ in range(5):
         s = env.reset()
-        for _ in range(200):
+        for _ in range(100):
             env.render()
             a = sarsa.get_action(s, epsilon)
             s, _, d, _ = env.step(a)
