@@ -11,6 +11,7 @@ from collections import deque
 from collections import namedtuple
 import time
 import matplotlib.pyplot as plt
+from matplotlib import animation
 import pandas as pd
 from mountain_car import MountainCarEnv
 import random
@@ -20,21 +21,25 @@ EpisodeStats = namedtuple("Stats", ["episode_lengths", "episode_rewards"])
 
 
 def tt(ndarray):
+    # to-tensor
     return Variable(torch.from_numpy(ndarray).float(), requires_grad=False)
 
 
 def soft_update(target, source, tau) -> None:
     # Note: the target weights are updated by taking 1-tau of themselves and adding tau times the weights of the source weights
-    with torch.no_grad():
-        source_param = source.named_parameters()
-        for k, source_p in source_param:
-            target_p = target.state_dict()[k]
-            target.state_dict()[k] = (1 - tau) * target_p + tau * source_p
+    # with torch.no_grad():
+    #     source_param = source.named_parameters()
+    #     for k, source_p in source_param:
+    #         target_p = target.state_dict()[k]
+    #         target.state_dict()[k] = (1 - tau) * target_p + tau * source_p
+    for target_param, param in zip(target.parameters(), source.parameters()):
+        target_param.data.copy_(target_param.data * (1.0 - tau) + param.data * tau)
 
 
 def hard_update(target, source) -> None:
-    source_copy = copy.deepcopy(source)
-    target.load_state_dict(source_copy.state_dict())
+    # source_copy = copy.deepcopy(source)
+    # target.load_state_dict(source_copy.state_dict())
+    soft_update(target, source, 1.0)
 
 
 class Q(nn.Module):
@@ -79,20 +84,20 @@ class ReplayBuffer:
         """get a minibatch from the replay buffer with bs=`batch_size` with each item being a tensor"""
         assert self._size > 0, "You can only sample when there are already transitions in the buffer!"
 
-        idx = random.choices(list(range(self._size)), k=batch_size)
+        batch_indices = np.random.choice(len(self._data.states), batch_size)
 
-        s_states = torch.tensor(self._data.states, dtype=torch.float)[idx].reshape(batch_size, -1)
-        s_actions = torch.tensor(self._data.actions)[idx].reshape(batch_size)
-        s_next_states = torch.tensor(self._data.next_states, dtype=torch.float)[idx].reshape(batch_size, -1)
-        s_rewards = torch.tensor(self._data.rewards, dtype=torch.float)[idx].reshape(batch_size)
-        s_terminal_flags = torch.tensor(self._data.terminal_flags)[idx].reshape(batch_size)
+        batch_states = np.array([self._data.states[i] for i in batch_indices])
+        batch_actions = np.array([self._data.actions[i] for i in batch_indices])
+        batch_next_states = np.array([self._data.next_states[i] for i in batch_indices])
+        batch_rewards = np.array([self._data.rewards[i] for i in batch_indices])
+        batch_terminal_flags = np.array([self._data.terminal_flags[i] for i in batch_indices])
 
         return Transition(
-            states = s_states,
-            actions = s_actions,
-            next_states = s_next_states,
-            rewards = s_rewards,
-            terminal_flags = s_terminal_flags
+            states = tt(batch_states),
+            actions = tt(batch_actions),
+            next_states = tt(batch_next_states),
+            rewards = tt(batch_rewards),
+            terminal_flags = tt(batch_terminal_flags)
         )
 
 
@@ -123,11 +128,10 @@ class DQN:
             return np.random.randint(self._action_dim)
         return u
 
-    def train(self, episodes, time_steps, epsilon):
+    def train(self, env, episodes, time_steps, epsilon):
         stats = EpisodeStats(episode_lengths=np.zeros(episodes), episode_rewards=np.zeros(episodes))
 
         for e in range(episodes):
-            print("%s/%s" % (e + 1, episodes))
             s = env.reset()
             for t in range(time_steps):
                 a = self.get_action(s, epsilon)
@@ -143,12 +147,12 @@ class DQN:
                 s_actions = trans.actions
                 s_next_states = trans.next_states
                 s_rewards = trans.rewards
+                s_terminal_flags = trans.terminal_flags
 
                 self._q_optimizer.zero_grad()
-                loss = self._loss_function(
-                    self._q(s_states)[torch.arange(self._bs), s_actions],
-                    s_rewards + self._gamma * self._q_target(s_next_states).max(dim=1)[0]
-                )
+                qv_target = s_rewards + (1 - s_terminal_flags.float()) * self._gamma * self._q_target(s_next_states).max(dim=1)[0]
+                qv_input = self._q(s_states)[torch.arange(self._bs).long(), s_actions.long()]
+                loss = self._loss_function(qv_input, qv_target.detach())
                 loss.backward()
                 self._q_optimizer.step()
 
@@ -161,6 +165,87 @@ class DQN:
                         hard_update(self._q_target, self._q)
                 else:
                     raise ValueError(f"Unsupported update_type={self._update_type}!")
+
+                if d:
+                    break
+
+                s = ns
+
+            print(f"\r{e+1}/{episodes}: e_r={stats.episode_rewards[e]}, e_l={stats.episode_lengths[e]}", end=' ', flush=True)
+
+        return stats
+
+
+class DoubleQ:
+    def __init__(self, state_dim, action_dim, gamma, bs):
+        self._q0 = Q(state_dim, action_dim)
+        self._q1 = Q(state_dim, action_dim)
+
+        # self._q.cuda()
+        # self._q_target.cuda()
+
+        self._gamma = gamma
+        self._loss_function = nn.MSELoss()
+        self._q_optimizer0 = optim.Adam(self._q0.parameters(), lr=0.001)
+        self._q_optimizer1 = optim.Adam(self._q1.parameters(), lr=0.001)
+
+        self._action_dim = action_dim
+        self._bs = bs
+
+        self._replay_buffer = ReplayBuffer(1e6)
+
+    def get_action(self, x, epsilon, net=0):
+        if net == 0:
+            u = np.argmax(self._q0(tt(x)).cpu().detach().numpy())
+        elif net == 1:
+            u = np.argmax(self._q1(tt(x)).cpu().detach().numpy())
+        r = np.random.uniform()
+        if r < epsilon:
+            return np.random.randint(self._action_dim)
+        return u
+
+    def train(self, env, episodes, time_steps, epsilon):
+        stats = EpisodeStats(episode_lengths=np.zeros(episodes), episode_rewards=np.zeros(episodes))
+
+        for e in range(episodes):
+            print("%s/%s" % (e + 1, episodes))
+            s = env.reset()
+            for t in range(time_steps):
+                net = random.randint(0, 1) # which network to use as current network
+
+                a = self.get_action(s, epsilon, net)
+                ns, r, d, _ = env.step(a)
+
+                stats.episode_rewards[e] += r
+                stats.episode_lengths[e] = t
+
+                self._replay_buffer.add_transition(s, a, ns, r, d)
+                trans = self._replay_buffer.random_next_batch(self._bs)
+
+                s_states = trans.states
+                s_actions = trans.actions
+                s_next_states = trans.next_states
+                s_rewards = trans.rewards
+                s_terminal_flags = trans.terminal_flags
+
+                if net == 0:
+                    q_optimizer = self._q_optimizer0
+                    q_cur = self._q0
+                    q_target = self._q1
+                else:
+                    q_optimizer = self._q_optimizer1
+                    q_cur = self._q1
+                    q_target = self._q0
+
+                na_best = q_cur(s_next_states).argmax(dim=-1)
+                # qv_target = s_rewards + (1 - s_terminal_flags.float()) * self._gamma * q_target(s_next_states).max(dim=1)[0]
+                qv_target = s_rewards + (1 - s_terminal_flags.float()) * self._gamma * q_target(s_next_states)[torch.arange(self._bs).long(), na_best.long()]
+                qv_input = q_cur(s_states)[torch.arange(self._bs).long(), s_actions.long()]
+
+                q_optimizer.zero_grad()
+                loss = self._loss_function(qv_input, qv_target.detach())
+                loss.backward()
+                q_optimizer.step()
 
                 if d:
                     break
@@ -199,26 +284,48 @@ def plot_episode_stats(stats, smoothing_window=10, noshow=False):
         plt.show()
 
 
+def save_frames_as_gif(frames, path='./', filename='gym_animation.gif'):
+
+    #Mess with this to change frame size
+    plt.figure(figsize=(frames[0].shape[1] / 72.0, frames[0].shape[0] / 72.0), dpi=72)
+
+    patch = plt.imshow(frames[0])
+    plt.axis('off')
+
+    def animate(i):
+        patch.set_data(frames[i])
+
+    anim = animation.FuncAnimation(plt.gcf(), animate, frames = len(frames), interval=50)
+    anim.save(path + filename, writer='imagemagick', fps=60)
+
+
 if __name__ == "__main__":
     env = MountainCarEnv()  # gym.make("MountainCar-v0")
+    env.seed(0)
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
 
-    dqn = DQN(state_dim, action_dim, gamma=0.99, bs=1, update_type='hard')
+    # network = DQN(state_dim, action_dim, gamma=0.99, bs=64, update_type='soft', soft_update_tau=0.01)
+    # network = DQN(state_dim, action_dim, gamma=0.99, bs=64, update_type='hard', hard_update_cycle=10)
+    network = DoubleQ(state_dim, action_dim, gamma=0.99, bs=64)
 
-    episodes = 100
+    episodes = 500
     time_steps = 200
     epsilon = 0.2
 
-    stats = dqn.train(episodes, time_steps, epsilon)
+    stats = network.train(env, episodes, time_steps, epsilon)
 
     plot_episode_stats(stats)
 
+    frames = []
     for _ in range(5):
         s = env.reset()
         for _ in range(200):
-            env.render()
-            a = dqn.get_action(s, epsilon)
+            f = env.render(mode='rgb_array')
+            frames.append(f)
+            a = network.get_action(s, epsilon)
             s, _, d, _ = env.step(a)
             if d:
                 break
+
+    save_frames_as_gif(frames)

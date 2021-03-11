@@ -10,5 +10,7 @@
         "*_test*.py"
     ],
     "python.testing.promptToConfigure": false,
-    "editor.detectIndentation": false
+    "editor.detectIndentation": false,
+    "python.pythonPath": "/opt/miniforge3/envs/dl-apple/bin/python",
+    "jupyter.jupyterServerType": "local"
 }
