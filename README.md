@@ -11,3 +11,4 @@
 7. ex07 - SARSA with non-linear function approximation
 8. ex08 - Q-learning with function approximation
 9. ex09 - TD(λ)
+9. ex10 - REINFORCE (vanilla and with baseline)

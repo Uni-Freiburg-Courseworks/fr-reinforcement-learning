@@ -84,5 +84,12 @@
             "program": "${workspaceFolder}/ex09/scripts/td_lambda.py",
             "console": "integratedTerminal"
         },
+        {
+            "name": "Run exercise 10",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/ex10/scripts/reinforce.py",
+            "console": "integratedTerminal"
+        },
     ]
 }
